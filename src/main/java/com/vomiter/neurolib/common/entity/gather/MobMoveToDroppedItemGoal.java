@@ -1,4 +1,4 @@
-package com.vomiter.neurolib.common.entity.eat;
+package com.vomiter.neurolib.common.entity.gather;
 
 import com.vomiter.neurolib.common.entity.generic.ICooldownGoal;
 import com.vomiter.neurolib.common.entity.generic.IIntervalAttemptGoal;
@@ -12,31 +12,31 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.function.Consumer;
 
-@Deprecated
-public abstract class MobEatDroppedFoodGoal<T extends PathfinderMob> extends Goal implements ICooldownGoal, IIntervalAttemptGoal, IIntervalExecuteGoal {
+public abstract class MobMoveToDroppedItemGoal<T extends PathfinderMob> extends Goal implements ICooldownGoal, IIntervalAttemptGoal, IIntervalExecuteGoal {
 
     protected final T mob;
     protected final double speed;
     protected final int scanIntervalTicks;
     protected final double searchRadius;
 
-    protected ItemEntity targetFood;
+    protected ItemEntity targetItem;
     protected long nextScanTick;
-    private long nextAllowedToEatTick;
-    protected long nextRepathTick = 0;
+    protected long nextAllowedActionTick;
+    protected long nextRepathTick = 0L;
 
     protected final int lossOfSightMaxTicks;
     protected int lossOfSightTicks = 0;
 
     protected final int repathIntervalTicks;
-    protected final double eatHorizontalRange;
-    protected final double eatVerticalRange;
+    protected final double interactHorizontalRange;
+    protected final double interactVerticalRange;
 
-    protected final MobFoodTargetingHelper.FailCache failCache;
-    protected final MobFoodTargetingHelper.ProgressTracker progress;
-    protected final MobEatingFx eatingFx;
+    protected final DroppedItemTargetingHelper.FailCache failCache;
+    protected final DroppedItemTargetingHelper.ProgressTracker progress;
 
-    protected MobEatDroppedFoodGoal(
+    protected boolean reachedTargetThisRun = false;
+
+    protected MobMoveToDroppedItemGoal(
             T mob,
             double speed,
             int scanIntervalTicks,
@@ -47,26 +47,24 @@ public abstract class MobEatDroppedFoodGoal<T extends PathfinderMob> extends Goa
             double stuckMinProgress,
             int lossOfSightMaxTicks,
             int repathIntervalTicks,
-            double eatHorizontalRange,
-            double eatVerticalRange,
-            int eatingFxDurationTicks
+            double interactHorizontalRange,
+            double interactVerticalRange
     ) {
         this.mob = mob;
         this.speed = speed;
         this.scanIntervalTicks = Math.max(1, scanIntervalTicks);
-        this.searchRadius = Math.max(1.0, searchRadius);
+        this.searchRadius = Math.max(1.0D, searchRadius);
         this.lossOfSightMaxTicks = Math.max(1, lossOfSightMaxTicks);
         this.repathIntervalTicks = Math.max(1, repathIntervalTicks);
-        this.eatHorizontalRange = Math.max(0.1D, eatHorizontalRange);
-        this.eatVerticalRange = Math.max(0.1D, eatVerticalRange);
+        this.interactHorizontalRange = Math.max(0.1D, interactHorizontalRange);
+        this.interactVerticalRange = Math.max(0.1D, interactVerticalRange);
 
-        this.failCache = new MobFoodTargetingHelper.FailCache(failTtlTicks);
-        this.progress = new MobFoodTargetingHelper.ProgressTracker(
+        this.failCache = new DroppedItemTargetingHelper.FailCache(failTtlTicks);
+        this.progress = new DroppedItemTargetingHelper.ProgressTracker(
                 stuckCheckIntervalTicks,
                 stuckMaxTicks,
                 stuckMinProgress
         );
-        this.eatingFx = new MobEatingFx(eatingFxDurationTicks);
 
         this.setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK));
     }
@@ -86,78 +84,78 @@ public abstract class MobEatDroppedFoodGoal<T extends PathfinderMob> extends Goa
         return scanIntervalTicks;
     }
 
-    public long getNextAllowedTick(){
-        return nextAllowedToEatTick;
+    public long getNextAllowedTick() {
+        return nextAllowedActionTick;
     }
 
-    public void setNextAllowedTick(long l){
-        nextAllowedToEatTick = l;
+    public void setNextAllowedTick(long l) {
+        nextAllowedActionTick = l;
     }
 
-    public long getCooldownTicks(){
-        return getEatCooldownTicks();
+    public long getCooldownTicks() {
+        return getActionCooldownTicks();
     }
 
-    public long getNextExecuteTick(){
+    @Override
+    public long getNextExecuteTick() {
         return nextRepathTick;
     }
 
-    public void setNextExecuteTick(long l){
+    @Override
+    public void setNextExecuteTick(long l) {
         nextRepathTick = l;
     }
 
-    public long getExecuteIntervalTicks(){
+    @Override
+    public long getExecuteIntervalTicks() {
         return repathIntervalTicks;
     }
 
-    public Consumer<IIntervalExecuteGoal> getExecutable(){
-        return (goal) -> {
-            moveToFood();
-        };
+    @Override
+    public Consumer<IIntervalExecuteGoal> getExecutable() {
+        return goal -> moveToTarget();
     }
-
-
 
     @Override
     public boolean canUse() {
         if (mob.level().isClientSide) return false;
         if (!isGoalEnabled()) return false;
-        if (!canStartEating()) return false;
-        if (eatingFx.isEating()) return false;
+        if (!canStartAction()) return false;
         if (isInCooldown()) return false;
         if (isInAttemptInterval()) return false;
+
         startAttemptInterval();
-        targetFood = findNearestFoodItem();
-        return targetFood != null;
+        targetItem = findNearestItem();
+        return targetItem != null;
     }
 
     @Override
     public boolean canContinueToUse() {
         if (mob.level().isClientSide) return false;
-        if (eatingFx.isEating()) return true;
         if (!isGoalEnabled()) return false;
-        if (!canContinueEating()) return false;
-        if (targetFood == null || !targetFood.isAlive()) return false;
-        if (targetFood.getItem().isEmpty()) return false;
+        if (!canContinueAction()) return false;
+        if (targetItem == null || !targetItem.isAlive()) return false;
+        if (targetItem.getItem().isEmpty()) return false;
 
         if (lossOfSightTicks >= lossOfSightMaxTicks) {
-            failCache.markFailed(targetFood, mob.level().getGameTime());
+            failCache.markFailed(targetItem, mob.level().getGameTime());
             lossOfSightTicks = 0;
             return false;
         }
 
-        return mob.distanceToSqr(targetFood) <= (searchRadius * searchRadius);
+        return mob.distanceToSqr(targetItem) <= (searchRadius * searchRadius);
     }
 
     @Override
     public void start() {
         onStart();
+        reachedTargetThisRun = false;
         lossOfSightTicks = 0;
 
-        if (targetFood != null) {
+        if (targetItem != null) {
             execute();
             long now = mob.level().getGameTime();
-            progress.reset(now, horizontalDistanceToSqr(targetFood));
+            progress.reset(now, horizontalDistanceToSqr(targetItem));
         } else {
             progress.clear();
         }
@@ -166,101 +164,96 @@ public abstract class MobEatDroppedFoodGoal<T extends PathfinderMob> extends Goa
     @Override
     public void stop() {
         mob.getNavigation().stop();
-        targetFood = null;
+        targetItem = null;
         lossOfSightTicks = 0;
         setNextExecuteTick(mob.level().getGameTime());
         progress.clear();
+
+        if (reachedTargetThisRun) {
+            startCooldown();
+        }
+
+        reachedTargetThisRun = false;
         onStop();
-        startCooldown();
     }
 
     @Override
     public void tick() {
-        if (eatingFx.isEating()) {
-            eatingFx.tick(mob);
+        if (targetItem == null || !targetItem.isAlive()) {
             return;
         }
 
-        if (targetFood == null || !targetFood.isAlive()) {
-            return;
-        }
-
-        if (!mob.hasLineOfSight(targetFood)) {
+        if (!mob.hasLineOfSight(targetItem)) {
             lossOfSightTicks++;
         } else {
             lossOfSightTicks = 0;
         }
 
         long now = mob.level().getGameTime();
-        double dist2 = horizontalDistanceToSqr(targetFood);
+        double dist2 = horizontalDistanceToSqr(targetItem);
 
         if (progress.update(now, dist2)) {
-            failCache.markFailed(targetFood, now);
+            failCache.markFailed(targetItem, now);
             mob.getNavigation().stop();
-            targetFood = null;
+            targetItem = null;
             return;
         }
 
-        mob.getLookControl().setLookAt(targetFood, 30.0F, 30.0F);
+        mob.getLookControl().setLookAt(targetItem, 30.0F, 30.0F);
 
-        if (!isCloseEnoughToEat(targetFood) && mob.getNavigation().isDone()) {
-            nudgeTowardFood();
+        if (!isCloseEnoughToInteract(targetItem) && mob.getNavigation().isDone()) {
+            nudgeTowardTarget();
         }
 
-        if (targetFood.onGround()
-                && mob.hasLineOfSight(targetFood)
-                && isCloseEnoughToEat(targetFood)) {
+        if (canInteractNow(targetItem)) {
             mob.getNavigation().stop();
-            consumeFoodEntity(targetFood);
-            targetFood = null;
+            reachedTargetThisRun = true;
+            onReachedTarget(targetItem);
+            targetItem = null;
             return;
         }
+
+        // execute() 內部自帶 interval 檢查
         execute();
     }
 
-    protected ItemEntity findNearestFoodItem() {
+    protected ItemEntity findNearestItem() {
         long now = mob.level().getGameTime();
 
-        List<ItemEntity> items = MobFoodTargetingHelper.queryItems(mob, searchRadius, it -> {
+        List<ItemEntity> items = DroppedItemTargetingHelper.queryItems(mob, searchRadius, it -> {
             if (!it.isAlive()) return false;
             if (failCache.shouldSkip(it, now)) return false;
 
             ItemStack stack = it.getItem();
             if (stack.isEmpty()) return false;
 
-            return isEdible(stack, it);
+            return isValidTarget(stack, it);
         });
 
         if (items.isEmpty()) return null;
-        return MobFoodTargetingHelper.findNearestItemEntity(items, this::distanceToCandidate);
+        return DroppedItemTargetingHelper.findNearestItemEntity(items, this::distanceToCandidate);
     }
 
     protected double distanceToCandidate(ItemEntity item) {
         return mob.distanceToSqr(item);
     }
 
-    protected void consumeFoodEntity(ItemEntity it) {
-        ItemStack stack = it.getItem();
-        if (stack.isEmpty()) return;
+    protected void moveToTarget() {
+        if (targetItem == null || !targetItem.isAlive()) return;
 
-        ItemStack bite = stack.split(1);
-        if (it.getItem().isEmpty()) {
-            it.discard();
-        }
-
-        onAteFood(bite, it);
-        eatingFx.start(bite);
+        mob.getNavigation().moveTo(
+                targetItem.getX(),
+                targetItem.getY(),
+                targetItem.getZ(),
+                speed
+        );
+        mob.getLookControl().setLookAt(targetItem, 30.0F, 30.0F);
     }
 
-    protected void moveToFood() {
-        if (targetFood == null || !targetFood.isAlive()) return;
-
-        double tx = targetFood.getX();
-        double ty = targetFood.getY();
-        double tz = targetFood.getZ();
-
-        mob.getNavigation().moveTo(tx, ty, tz, speed);
-        mob.getLookControl().setLookAt(targetFood, 30.0F, 30.0F);
+    protected boolean canInteractNow(ItemEntity item) {
+        return item.onGround()
+                && mob.hasLineOfSight(item)
+                && isCloseEnoughToInteract(item);
     }
 
     protected double horizontalDistanceToSqr(ItemEntity item) {
@@ -269,13 +262,13 @@ public abstract class MobEatDroppedFoodGoal<T extends PathfinderMob> extends Goa
         return dx * dx + dz * dz;
     }
 
-    protected void nudgeTowardFood() {
-        if (targetFood == null) return;
+    protected void nudgeTowardTarget() {
+        if (targetItem == null) return;
 
-        double dx = targetFood.getX() - mob.getX();
-        double dz = targetFood.getZ() - mob.getZ();
+        double dx = targetItem.getX() - mob.getX();
+        double dz = targetItem.getZ() - mob.getZ();
         double len = Math.sqrt(dx * dx + dz * dz);
-        if (len < 1.0e-4) return;
+        if (len < 1.0e-4D) return;
 
         double push = getNudgeStrength();
         mob.setDeltaMovement(
@@ -285,34 +278,36 @@ public abstract class MobEatDroppedFoodGoal<T extends PathfinderMob> extends Goa
         );
     }
 
-    protected boolean isCloseEnoughToEat(ItemEntity item) {
+    protected boolean isCloseEnoughToInteract(ItemEntity item) {
         double dx = mob.getX() - item.getX();
         double dz = mob.getZ() - item.getZ();
         double dy = Math.abs(mob.getY() - item.getY());
 
-        return dx * dx + dz * dz <= eatHorizontalRange * eatHorizontalRange
-                && dy <= eatVerticalRange;
+        return dx * dx + dz * dz <= interactHorizontalRange * interactHorizontalRange
+                && dy <= interactVerticalRange;
     }
 
     protected double getNudgeStrength() {
         return 0.08D;
     }
 
-    protected void playDefaultEatSound() {
-        MobEatingFx.playDefaultBiteSounds(mob);
+    protected void markCurrentTargetFailed() {
+        if (targetItem != null) {
+            failCache.markFailed(targetItem, mob.level().getGameTime());
+        }
     }
 
     protected abstract boolean isGoalEnabled();
 
-    protected abstract boolean canStartEating();
+    protected abstract boolean canStartAction();
 
-    protected abstract boolean canContinueEating();
+    protected abstract boolean canContinueAction();
 
-    protected abstract boolean isEdible(ItemStack stack, ItemEntity entity);
+    protected abstract boolean isValidTarget(ItemStack stack, ItemEntity entity);
 
-    protected abstract void onAteFood(ItemStack bite, ItemEntity source);
+    protected abstract void onReachedTarget(ItemEntity target);
 
-    protected abstract int getEatCooldownTicks();
+    protected abstract int getActionCooldownTicks();
 
     protected void onStart() {
     }
