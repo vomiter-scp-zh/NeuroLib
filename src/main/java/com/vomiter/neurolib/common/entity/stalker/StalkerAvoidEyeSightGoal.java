@@ -35,6 +35,9 @@ public class StalkerAvoidEyeSightGoal extends Goal {
     @Override
     public boolean canUse() {
         LivingEntity target = stalker.getTarget();
+        if(stalker.getTarget() != null){
+            if (stalker.distanceToSqr(stalker.getTarget()) >= 7.5 * 7.5) return false;
+        }
         if (gameTime() < nextAllowTick) return false;
         if (!isValidTarget(target)) return false;
         if (stalker.distanceToSqr(target) > config.activationDistanceSqr()) return false;
