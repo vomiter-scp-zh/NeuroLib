@@ -1,13 +1,13 @@
 package com.vomiter.neurolib.common.event;
 
 import com.vomiter.neurolib.common.command.ModCommand;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.RegisterCommandsEvent;
-import net.minecraftforge.eventbus.api.IEventBus;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.RegisterCommandsEvent;
 
 public class EventHandler {
     public static void init(){
-        final IEventBus bus = MinecraftForge.EVENT_BUS;
+        final IEventBus bus = NeoForge.EVENT_BUS;
         bus.addListener(EventHandler::onRegisterCommands);
     }
 

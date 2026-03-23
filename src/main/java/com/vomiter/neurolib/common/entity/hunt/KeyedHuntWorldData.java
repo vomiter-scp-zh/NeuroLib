@@ -1,6 +1,7 @@
 package com.vomiter.neurolib.common.entity.hunt;
 
 import com.vomiter.neurolib.util.TimeWindowHistory;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.saveddata.SavedData;
@@ -13,30 +14,16 @@ public class KeyedHuntWorldData extends SavedData {
     private static final String NAME = "neurolib_keyed_hunt_data";
     private static final int DEFAULT_CAPACITY = 1000;
 
+    private static final Factory<KeyedHuntWorldData> FACTORY =
+            new Factory<>(KeyedHuntWorldData::new, KeyedHuntWorldData::load);
+
     private final Map<String, TimeWindowHistory> histories = new HashMap<>();
 
     public KeyedHuntWorldData() {
     }
 
-    public static KeyedHuntWorldData load(CompoundTag tag) {
-        KeyedHuntWorldData data = new KeyedHuntWorldData();
-
-        CompoundTag historiesTag = tag.getCompound("histories");
-        for (String key : historiesTag.getAllKeys()) {
-            CompoundTag entry = historiesTag.getCompound(key);
-
-            TimeWindowHistory history = new TimeWindowHistory(entry.getInt("capacity"));
-            history.loadRaw(entry.getLongArray("timestamps"));
-            history.setNextIndex(entry.getInt("nextIndex"));
-
-            data.histories.put(key, history);
-        }
-
-        return data;
-    }
-
     @Override
-    public @NotNull CompoundTag save(@NotNull CompoundTag tag) {
+    public @NotNull CompoundTag save(@NotNull CompoundTag tag, HolderLookup.@NotNull Provider provider) {
         CompoundTag historiesTag = new CompoundTag();
 
         for (Map.Entry<String, TimeWindowHistory> entry : histories.entrySet()) {
@@ -53,6 +40,23 @@ public class KeyedHuntWorldData extends SavedData {
 
         tag.put("histories", historiesTag);
         return tag;
+    }
+
+    public static KeyedHuntWorldData load(CompoundTag tag, HolderLookup.Provider provider) {
+        KeyedHuntWorldData data = new KeyedHuntWorldData();
+
+        CompoundTag historiesTag = tag.getCompound("histories");
+        for (String key : historiesTag.getAllKeys()) {
+            CompoundTag entry = historiesTag.getCompound(key);
+
+            TimeWindowHistory history = new TimeWindowHistory(entry.getInt("capacity"));
+            history.loadRaw(entry.getLongArray("timestamps"));
+            history.setNextIndex(entry.getInt("nextIndex"));
+
+            data.histories.put(key, history);
+        }
+
+        return data;
     }
 
     private TimeWindowHistory getOrCreate(String key, int capacity) {
@@ -73,10 +77,6 @@ public class KeyedHuntWorldData extends SavedData {
     }
 
     public static KeyedHuntWorldData get(ServerLevel level) {
-        return level.getDataStorage().computeIfAbsent(
-                KeyedHuntWorldData::load,
-                KeyedHuntWorldData::new,
-                NAME
-        );
+        return level.getDataStorage().computeIfAbsent(FACTORY, NAME);
     }
 }
