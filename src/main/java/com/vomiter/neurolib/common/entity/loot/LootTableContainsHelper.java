@@ -23,7 +23,7 @@ public final class LootTableContainsHelper {
     ) {
         if (server == null || entityType == null) return false;
 
-        ResourceLocation lootTableId = entityType.getDefaultLootTable();
+        ResourceLocation lootTableId = entityType.getDefaultLootTable().location();
         return lootTableContains(server, lootTableId, specSupplier);
     }
 
