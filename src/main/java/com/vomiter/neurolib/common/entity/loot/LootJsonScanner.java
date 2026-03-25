@@ -68,7 +68,7 @@ public final class LootJsonScanner {
     private static JsonObject readLootTableJson(ResourceManager resourceManager, ResourceLocation lootTableId) {
         ResourceLocation fileId = ResourceLocation.fromNamespaceAndPath(
                 lootTableId.getNamespace(),
-                "loot_tables/" + lootTableId.getPath() + ".json"
+                "loot_table/" + lootTableId.getPath() + ".json"
         );
 
         try (var res = resourceManager.getResourceOrThrow(fileId).open();
