@@ -5,10 +5,7 @@ import com.vomiter.neurolib.common.entity.IReasonTracker;
 import com.vomiter.neurolib.common.entity.NeuroLibReasons;
 import com.vomiter.neurolib.common.entity.movement.IMovementCache;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.level.Level;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -17,8 +14,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.Arrays;
 
-@Mixin(LivingEntity.class)
-public abstract class LivingEntityMovementCacheMixin extends Entity implements IMovementCache {
+@Mixin(Entity.class)
+public abstract class LivingEntityMovementCacheMixin implements IMovementCache {
 
     @Unique private static final int NeuroLib_SAMPLE_SIZE = 10;
 
@@ -34,19 +31,16 @@ public abstract class LivingEntityMovementCacheMixin extends Entity implements I
 
     @Unique private boolean neuroLib$wasRecordingLastTick = false;
 
-    public LivingEntityMovementCacheMixin(EntityType<?> type, Level level) {
-        super(type, level);
-    }
-
     @Unique
     private boolean neuroLib$shouldRecordMovementNow() {
         return (Object) this instanceof IReasonTracker tracker
                 && tracker.neuroLib$hasReason(NeuroLibReasons.RECORD_MOVEMENT);
     }
 
-    @Inject(method = "tick", at = @At("HEAD"))
+    @Inject(method = "tick", at = @At("HEAD"), remap = false)
     private void neuroLib$capturePrevPos(CallbackInfo ci) {
-        if (level().isClientSide()) return;
+        var self = (Entity)(Object)this;
+        if (self.level().isClientSide()) return;
 
         boolean shouldRecord = neuroLib$shouldRecordMovementNow();
         if (!shouldRecord) {
@@ -60,19 +54,21 @@ public abstract class LivingEntityMovementCacheMixin extends Entity implements I
         neuroLib$wasRecordingLastTick = true;
 
         // 故意只在偶數 tick 記錄起點，避免每 tick 取樣全接近 0
-        if (this.tickCount % 2 != 0) return;
+        if (self.tickCount % 2 != 0) return;
 
-        neuroLib$lastX = getX();
-        neuroLib$lastZ = getZ();
+        neuroLib$lastX = self.getX();
+        neuroLib$lastZ = self.getZ();
     }
 
-    @Inject(method = "tick", at = @At("TAIL"))
+    @Inject(method = "tick", at = @At("TAIL"), remap = false)
     private void neuroLib$storeStepSqr(CallbackInfo ci) {
-        if (level().isClientSide()) return;
+        var self = (Entity)(Object)this;
+
+        if (self.level().isClientSide()) return;
         if (!neuroLib$shouldRecordMovementNow()) return;
 
-        double dx = getX() - neuroLib$lastX;
-        double dz = getZ() - neuroLib$lastZ;
+        double dx = self.getX() - neuroLib$lastX;
+        double dz = self.getZ() - neuroLib$lastZ;
         double stepSqr = dx * dx + dz * dz;
         neuroLib$lastSampleDx = dx;
         neuroLib$lastSampleDz = dz;

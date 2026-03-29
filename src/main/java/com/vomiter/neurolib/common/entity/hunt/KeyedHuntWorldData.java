@@ -1,62 +1,60 @@
 package com.vomiter.neurolib.common.entity.hunt;
 
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.vomiter.neurolib.util.TimeWindowHistory;
-import net.minecraft.core.HolderLookup;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.saveddata.SavedData;
+import net.minecraft.world.level.saveddata.SavedDataType;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.HashMap;
 import java.util.Map;
 
 public class KeyedHuntWorldData extends SavedData {
-    private static final String NAME = "neurolib_keyed_hunt_data";
     private static final int DEFAULT_CAPACITY = 1000;
 
-    private static final Factory<KeyedHuntWorldData> FACTORY =
-            new Factory<>(KeyedHuntWorldData::new, KeyedHuntWorldData::load);
+    private static final Codec<TimeWindowHistory> HISTORY_CODEC = RecordCodecBuilder.create(instance -> instance.group(
+            Codec.INT.fieldOf("capacity").forGetter(TimeWindowHistory::capacity),
+            Codec.LONG.listOf().fieldOf("timestamps").forGetter(history -> {
+                long[] raw = history.copyRaw();
+                java.util.List<Long> list = new java.util.ArrayList<>(raw.length);
+                for (long l : raw) list.add(l);
+                return list;
+            }),
+            Codec.INT.fieldOf("nextIndex").forGetter(TimeWindowHistory::getNextIndex)
+    ).apply(instance, (capacity, timestamps, nextIndex) -> {
+        TimeWindowHistory history = new TimeWindowHistory(capacity);
+        long[] raw = new long[timestamps.size()];
+        for (int i = 0; i < timestamps.size(); i++) {
+            raw[i] = timestamps.get(i);
+        }
+        history.loadRaw(raw);
+        history.setNextIndex(nextIndex);
+        return history;
+    }));
 
-    private final Map<String, TimeWindowHistory> histories = new HashMap<>();
+    private static final Codec<KeyedHuntWorldData> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+            Codec.unboundedMap(Codec.STRING, HISTORY_CODEC)
+                    .optionalFieldOf("histories", Map.of())
+                    .forGetter(data -> data.histories)
+    ).apply(instance, KeyedHuntWorldData::new));
+
+    public static final SavedDataType<@NotNull KeyedHuntWorldData> TYPE = new SavedDataType<>(
+            Identifier.fromNamespaceAndPath("neurolib", "neurolib_keyed_hunt_data"),
+            KeyedHuntWorldData::new,
+            CODEC
+    );
+
+    private final Map<String, TimeWindowHistory> histories;
 
     public KeyedHuntWorldData() {
+        this(new HashMap<>());
     }
 
-    @Override
-    public @NotNull CompoundTag save(@NotNull CompoundTag tag, HolderLookup.@NotNull Provider provider) {
-        CompoundTag historiesTag = new CompoundTag();
-
-        for (Map.Entry<String, TimeWindowHistory> entry : histories.entrySet()) {
-            String key = entry.getKey();
-            TimeWindowHistory history = entry.getValue();
-
-            CompoundTag historyTag = new CompoundTag();
-            historyTag.putInt("capacity", history.capacity());
-            historyTag.putLongArray("timestamps", history.copyRaw());
-            historyTag.putInt("nextIndex", history.getNextIndex());
-
-            historiesTag.put(key, historyTag);
-        }
-
-        tag.put("histories", historiesTag);
-        return tag;
-    }
-
-    public static KeyedHuntWorldData load(CompoundTag tag, HolderLookup.Provider provider) {
-        KeyedHuntWorldData data = new KeyedHuntWorldData();
-
-        CompoundTag historiesTag = tag.getCompound("histories");
-        for (String key : historiesTag.getAllKeys()) {
-            CompoundTag entry = historiesTag.getCompound(key);
-
-            TimeWindowHistory history = new TimeWindowHistory(entry.getInt("capacity"));
-            history.loadRaw(entry.getLongArray("timestamps"));
-            history.setNextIndex(entry.getInt("nextIndex"));
-
-            data.histories.put(key, history);
-        }
-
-        return data;
+    private KeyedHuntWorldData(Map<String, TimeWindowHistory> histories) {
+        this.histories = new HashMap<>(histories);
     }
 
     private TimeWindowHistory getOrCreate(String key, int capacity) {
@@ -77,6 +75,6 @@ public class KeyedHuntWorldData extends SavedData {
     }
 
     public static KeyedHuntWorldData get(ServerLevel level) {
-        return level.getDataStorage().computeIfAbsent(FACTORY, NAME);
+        return level.getDataStorage().computeIfAbsent(TYPE);
     }
 }

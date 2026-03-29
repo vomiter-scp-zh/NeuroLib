@@ -3,7 +3,7 @@ package com.vomiter.neurolib.common.entity.loot;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.ResourceManager;
 
 import java.io.InputStreamReader;
@@ -15,17 +15,17 @@ public final class LootJsonScanner {
 
     public static boolean lootTableContainsAnyTarget(
             ResourceManager resourceManager,
-            ResourceLocation lootTableId,
+            Identifier lootTableId,
             Set<String> targetItemIds,
             String targetTagId
     ) {
-        Map<ResourceLocation, JsonObject> jsonCache = new HashMap<>();
+        Map<Identifier, JsonObject> jsonCache = new HashMap<>();
         return dfs(resourceManager, lootTableId, targetItemIds, targetTagId, jsonCache, new HashSet<>());
     }
 
     public static boolean lootTableContainsAnyTarget(
             ResourceManager resourceManager,
-            ResourceLocation lootTableId,
+            Identifier lootTableId,
             LootMatchSpec spec
     ) {
         return lootTableContainsAnyTarget(resourceManager, lootTableId, spec.itemIds(), spec.tagId());
@@ -33,11 +33,11 @@ public final class LootJsonScanner {
 
     private static boolean dfs(
             ResourceManager resourceManager,
-            ResourceLocation lootTableId,
+            Identifier lootTableId,
             Set<String> targetItemIds,
             String targetTagId,
-            Map<ResourceLocation, JsonObject> jsonCache,
-            Set<ResourceLocation> visiting
+            Map<Identifier, JsonObject> jsonCache,
+            Set<Identifier> visiting
     ) {
         if (!visiting.add(lootTableId)) {
             return false;
@@ -53,7 +53,7 @@ public final class LootJsonScanner {
                 return true;
             }
 
-            for (ResourceLocation ref : findLootTableReferences(json)) {
+            for (Identifier ref : findLootTableReferences(json)) {
                 if (ref != null && dfs(resourceManager, ref, targetItemIds, targetTagId, jsonCache, visiting)) {
                     return true;
                 }
@@ -65,8 +65,8 @@ public final class LootJsonScanner {
         }
     }
 
-    private static JsonObject readLootTableJson(ResourceManager resourceManager, ResourceLocation lootTableId) {
-        ResourceLocation fileId = ResourceLocation.fromNamespaceAndPath(
+    private static JsonObject readLootTableJson(ResourceManager resourceManager, Identifier lootTableId) {
+        Identifier fileId = Identifier.fromNamespaceAndPath(
                 lootTableId.getNamespace(),
                 "loot_table/" + lootTableId.getPath() + ".json"
         );
@@ -121,13 +121,13 @@ public final class LootJsonScanner {
         return false;
     }
 
-    private static List<ResourceLocation> findLootTableReferences(JsonObject root) {
-        ArrayList<ResourceLocation> out = new ArrayList<>();
+    private static List<Identifier> findLootTableReferences(JsonObject root) {
+        ArrayList<Identifier> out = new ArrayList<>();
         collectRefs(root, out);
         return out;
     }
 
-    private static void collectRefs(JsonElement element, List<ResourceLocation> out) {
+    private static void collectRefs(JsonElement element, List<Identifier> out) {
         if (element == null) {
             return;
         }
@@ -141,7 +141,7 @@ public final class LootJsonScanner {
                 String type = obj.get("type").getAsString();
                 String name = obj.get("name").getAsString();
                 if ("minecraft:loot_table".equals(type)) {
-                    ResourceLocation rl = ResourceLocation.tryParse(name);
+                    Identifier rl = Identifier.tryParse(name);
                     if (rl != null) {
                         out.add(rl);
                     }

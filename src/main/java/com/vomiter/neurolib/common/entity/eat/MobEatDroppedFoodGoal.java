@@ -120,7 +120,7 @@ public abstract class MobEatDroppedFoodGoal<T extends PathfinderMob> extends Goa
 
     @Override
     public boolean canUse() {
-        if (mob.level().isClientSide) return false;
+        if (mob.level().isClientSide()) return false;
         if (!isGoalEnabled()) return false;
         if (!canStartEating()) return false;
         if (eatingFx.isEating()) return false;
@@ -133,7 +133,7 @@ public abstract class MobEatDroppedFoodGoal<T extends PathfinderMob> extends Goa
 
     @Override
     public boolean canContinueToUse() {
-        if (mob.level().isClientSide) return false;
+        if (mob.level().isClientSide()) return false;
         if (eatingFx.isEating()) return true;
         if (!isGoalEnabled()) return false;
         if (!canContinueEating()) return false;

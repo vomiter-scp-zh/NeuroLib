@@ -283,7 +283,7 @@ public class StalkerAIHelper {
         BlockState state = stalker.level().getBlockState(hitPos);
 
         boolean occluding = state.canOcclude();
-        boolean solidRender = state.isSolidRender(stalker.level(), hitPos);
+        boolean solidRender = state.isSolidRender();
 
         return (occluding && solidRender) ? COVER_BONUS : 0.0D;
     }

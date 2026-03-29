@@ -51,7 +51,7 @@ public abstract class MobEatDroppedItemGoal<T extends PathfinderMob> extends Mob
 
     @Override
     public boolean canContinueToUse() {
-        if (mob.level().isClientSide) {
+        if (mob.level().isClientSide()) {
             return false;
         }
         if (eatingFx.isEating()) {

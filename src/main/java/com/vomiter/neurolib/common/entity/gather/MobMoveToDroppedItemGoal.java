@@ -118,7 +118,7 @@ public abstract class MobMoveToDroppedItemGoal<T extends PathfinderMob> extends 
 
     @Override
     public boolean canUse() {
-        if (mob.level().isClientSide) return false;
+        if (mob.level().isClientSide()) return false;
         if (!isGoalEnabled()) return false;
         if (!canStartAction()) return false;
         if (isInCooldown()) return false;
@@ -131,7 +131,7 @@ public abstract class MobMoveToDroppedItemGoal<T extends PathfinderMob> extends 
 
     @Override
     public boolean canContinueToUse() {
-        if (mob.level().isClientSide) return false;
+        if (mob.level().isClientSide()) return false;
         if (!isGoalEnabled()) return false;
         if (!canContinueAction()) return false;
         if (targetItem == null || !targetItem.isAlive()) return false;

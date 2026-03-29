@@ -3,7 +3,7 @@ package com.vomiter.neurolib;
 import com.mojang.logging.LogUtils;
 import com.vomiter.neurolib.common.event.EventHandler;
 import com.vomiter.neurolib.data.ModDataGenerator;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
@@ -20,7 +20,7 @@ public class NeuroLib
     public static final boolean DEBUG_MODE = true;
 
 
-    public static ResourceLocation modLoc(String path){
+    public static Identifier modLoc(String path){
         return Helpers.id(NeuroLib.MOD_ID, path);
     }
 

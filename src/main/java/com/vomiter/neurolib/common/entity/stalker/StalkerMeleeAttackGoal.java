@@ -307,7 +307,7 @@ public class StalkerMeleeAttackGoal extends MeleeAttackGoal {
         if (target == null) return false;
         if (!target.isAlive()) return false;
         if (!stalker.canAttack(target)) return false;
-        if (!stalker.isWithinRestriction(target.blockPosition())) return false;
+        //if (!stalker.isWithinRestriction(target.blockPosition())) return false;
 
         if (target instanceof Player player) {
             if (player.isCreative() || player.isSpectator()) {

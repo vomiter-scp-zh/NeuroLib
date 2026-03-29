@@ -1,10 +1,13 @@
 package com.vomiter.neurolib.common.entity.loot;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.level.storage.loot.BuiltInLootTables;
+import net.neoforged.neoforge.registries.NeoForgeRegistries;
 
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -23,18 +26,20 @@ public final class LootTableContainsHelper {
     ) {
         if (server == null || entityType == null) return false;
 
-        ResourceLocation lootTableId = entityType.getDefaultLootTable().location();
+        Identifier lootTableId = entityType.getDefaultLootTable().orElse(ResourceKey.create(
+                Registries.LOOT_TABLE,
+                Identifier.fromNamespaceAndPath("null", "empty")
+        )).identifier();
         return lootTableContains(server, lootTableId, specSupplier);
     }
 
     public static boolean lootTableContains(
             MinecraftServer server,
-            ResourceLocation lootTableId,
+            Identifier lootTableId,
             Supplier<LootMatchSpec> specSupplier
     ) {
         if (server == null || lootTableId == null || specSupplier == null) return false;
-        if (BuiltInLootTables.EMPTY.equals(lootTableId)) return false;
-
+        if (lootTableId.equals(Identifier.fromNamespaceAndPath("null", "empty"))) return false;
         LootMatchSpec spec = specSupplier.get();
         if (spec == null) return false;
 
@@ -49,7 +54,7 @@ public final class LootTableContainsHelper {
 
     private static boolean compute(
             ResourceManager resourceManager,
-            ResourceLocation lootTableId,
+            Identifier lootTableId,
             LootMatchSpec spec
     ) {
         return LootJsonScanner.lootTableContainsAnyTarget(
@@ -65,7 +70,7 @@ public final class LootTableContainsHelper {
     }
 
     private record CacheKey(
-            ResourceLocation lootTableId,
+            Identifier lootTableId,
             String tagId,
             int itemIdsHash
     ) {

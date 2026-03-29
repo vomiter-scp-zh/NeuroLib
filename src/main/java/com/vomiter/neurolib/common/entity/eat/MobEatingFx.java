@@ -42,7 +42,7 @@ public final class MobEatingFx {
     }
 
     public static void playDefaultBiteSounds(PathfinderMob mob) {
-        playBiteSounds(mob, SoundEvents.GENERIC_EAT, 1.0F, 1.0F, null, 0.0F, 0.0F);
+        playBiteSounds(mob, SoundEvents.GENERIC_EAT.value(), 1.0F, 1.0F, null, 0.0F, 0.0F);
     }
 
     public static void playBiteSounds(
@@ -59,7 +59,7 @@ public final class MobEatingFx {
     private static void spawnItemParticles(PathfinderMob mob, ItemStack stack) {
         if (!(mob.level() instanceof ServerLevel serverLevel)) return;
 
-        var particle = new ItemParticleOption(ParticleTypes.ITEM, stack);
+        var particle = new ItemParticleOption(ParticleTypes.ITEM, stack.getItem());
         double x = mob.getX();
         double y = mob.getY() + mob.getEyeHeight() * 0.6;
         double z = mob.getZ();

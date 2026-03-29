@@ -27,7 +27,7 @@ public abstract class AbstractCappedHuntGoal<TMob extends Mob, TTarget extends L
                 randomInterval,
                 mustSee,
                 mustReach,
-                candidate -> true
+                (candidate, serverLevel) -> true
         );
         this.hunter = hunter;
         this.localHistory = new TimeWindowHistory(getLocalHistoryCapacity());
