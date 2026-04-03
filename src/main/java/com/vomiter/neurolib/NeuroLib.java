@@ -18,7 +18,7 @@ public class NeuroLib
     // Define mod id in a common place for everything to reference
     public static final String MOD_ID = "neurolib";
     public static final Logger LOGGER = LogUtils.getLogger();
-    public static final boolean DEBUG_MODE = true;
+    public static final boolean DEBUG_MODE = false;
 
 
     public static ResourceLocation modLoc(String path){
