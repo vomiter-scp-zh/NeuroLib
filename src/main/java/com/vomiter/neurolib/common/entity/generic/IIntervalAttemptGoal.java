@@ -7,18 +7,23 @@ public interface IIntervalAttemptGoal {
     void setNextAttemptTick(long l);
     long getAttemptIntervalTicks();
 
-    default boolean isInAttemptInterval(){
-        if(this instanceof Mob mob){
-            var currentTime = mob.level().getGameTime();
+    default boolean isInAttemptInterval() {
+        if (this instanceof Mob mob) {
+            long currentTime = mob.level().getGameTime();
             return getNextAttemptTick() >= currentTime;
         }
         return false;
     }
-    default void startAttemptInterval(){
-        if(this instanceof Mob mob){
-            var currentTime = mob.level().getGameTime();
-            setNextAttemptTick(currentTime + getAttemptIntervalTicks());
-        }
+
+    default long getAttemptIntervalOffset(Mob mob) {
+        long interval = Math.max(1L, getAttemptIntervalTicks());
+        return Math.floorMod(mob.getId(), interval);
     }
 
+    default void startAttemptInterval() {
+        if (this instanceof Mob mob) {
+            long currentTime = mob.level().getGameTime();
+            setNextAttemptTick(currentTime + getAttemptIntervalTicks() + getAttemptIntervalOffset(mob));
+        }
+    }
 }

@@ -12,7 +12,9 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.function.Consumer;
 
-public abstract class MobMoveToDroppedItemGoal<T extends PathfinderMob> extends Goal implements ICooldownGoal, IIntervalAttemptGoal, IIntervalExecuteGoal {
+public abstract class MobMoveToDroppedItemGoal<T extends PathfinderMob>
+        extends Goal
+        implements ICooldownGoal, IIntervalAttemptGoal, IIntervalExecuteGoal {
 
     protected final T mob;
     protected final double speed;
@@ -20,6 +22,7 @@ public abstract class MobMoveToDroppedItemGoal<T extends PathfinderMob> extends 
     protected final double searchRadius;
 
     protected ItemEntity targetItem;
+
     protected long nextScanTick;
     protected long nextAllowedActionTick;
     protected long nextRepathTick = 0L;
@@ -35,6 +38,14 @@ public abstract class MobMoveToDroppedItemGoal<T extends PathfinderMob> extends 
     protected final DroppedItemTargetingHelper.ProgressTracker progress;
 
     protected boolean reachedTargetThisRun = false;
+
+    // 第二步新增：記錄上次送 path 時的 target 座標
+    protected double lastPathTargetX = Double.NaN;
+    protected double lastPathTargetY = Double.NaN;
+    protected double lastPathTargetZ = Double.NaN;
+
+    // 第二步新增：target 若位移小於 0.2 格，就略過這次重送
+    protected static final double TARGET_REPATH_DELTA_SQR = 0.04D;
 
     protected MobMoveToDroppedItemGoal(
             T mob,
@@ -84,14 +95,17 @@ public abstract class MobMoveToDroppedItemGoal<T extends PathfinderMob> extends 
         return scanIntervalTicks;
     }
 
+    @Override
     public long getNextAllowedTick() {
         return nextAllowedActionTick;
     }
 
+    @Override
     public void setNextAllowedTick(long l) {
         nextAllowedActionTick = l;
     }
 
+    @Override
     public long getCooldownTicks() {
         return getActionCooldownTicks();
     }
@@ -112,7 +126,8 @@ public abstract class MobMoveToDroppedItemGoal<T extends PathfinderMob> extends 
     }
 
     @Override
-    public Consumer<IIntervalExecuteGoal> getExecutable() {
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public Consumer getExecutable() {
         return goal -> moveToTarget();
     }
 
@@ -151,6 +166,7 @@ public abstract class MobMoveToDroppedItemGoal<T extends PathfinderMob> extends 
         onStart();
         reachedTargetThisRun = false;
         lossOfSightTicks = 0;
+        resetLastPathTarget();
 
         if (targetItem != null) {
             execute();
@@ -168,6 +184,7 @@ public abstract class MobMoveToDroppedItemGoal<T extends PathfinderMob> extends 
         lossOfSightTicks = 0;
         setNextExecuteTick(mob.level().getGameTime());
         progress.clear();
+        resetLastPathTarget();
 
         if (reachedTargetThisRun) {
             startCooldown();
@@ -196,6 +213,7 @@ public abstract class MobMoveToDroppedItemGoal<T extends PathfinderMob> extends 
             failCache.markFailed(targetItem, now);
             mob.getNavigation().stop();
             targetItem = null;
+            resetLastPathTarget();
             return;
         }
 
@@ -210,6 +228,7 @@ public abstract class MobMoveToDroppedItemGoal<T extends PathfinderMob> extends 
             reachedTargetThisRun = true;
             onReachedTarget(targetItem);
             targetItem = null;
+            resetLastPathTarget();
             return;
         }
 
@@ -220,15 +239,19 @@ public abstract class MobMoveToDroppedItemGoal<T extends PathfinderMob> extends 
     protected ItemEntity findNearestItem() {
         long now = mob.level().getGameTime();
 
-        List<ItemEntity> items = DroppedItemTargetingHelper.queryItems(mob, searchRadius, it -> {
-            if (!it.isAlive()) return false;
-            if (failCache.shouldSkip(it, now)) return false;
+        List<ItemEntity> items = DroppedItemTargetingHelper.queryItems(
+                mob,
+                searchRadius,
+                it -> {
+                    if (!it.isAlive()) return false;
+                    if (failCache.shouldSkip(it, now)) return false;
 
-            ItemStack stack = it.getItem();
-            if (stack.isEmpty()) return false;
+                    ItemStack stack = it.getItem();
+                    if (stack.isEmpty()) return false;
 
-            return isValidTarget(stack, it);
-        });
+                    return isValidTarget(stack, it);
+                }
+        );
 
         if (items.isEmpty()) return null;
         return DroppedItemTargetingHelper.findNearestItemEntity(items, this::distanceToCandidate);
@@ -241,6 +264,25 @@ public abstract class MobMoveToDroppedItemGoal<T extends PathfinderMob> extends 
     protected void moveToTarget() {
         if (targetItem == null || !targetItem.isAlive()) return;
 
+        double tx = targetItem.getX();
+        double ty = targetItem.getY();
+        double tz = targetItem.getZ();
+
+        // 現有 path 還在進行中，而且 target 幾乎沒動，就略過這次重送 moveTo
+        // 如果是 NaN 代表沒有真的紀錄過座標
+        if (!mob.getNavigation().isDone() && !Double.isNaN(lastPathTargetX)) {
+            double dx = tx - lastPathTargetX;
+            double dy = ty - lastPathTargetY;
+            double dz = tz - lastPathTargetZ;
+            double movedSqr = dx * dx + dy * dy + dz * dz;
+
+            // 確認目標位移
+            if (movedSqr < TARGET_REPATH_DELTA_SQR) {
+                mob.getLookControl().setLookAt(targetItem, 30.0F, 30.0F);
+                return;
+            }
+        }
+
         mob.getNavigation().moveTo(
                 targetItem.getX(),
                 targetItem.getY(),
@@ -248,12 +290,14 @@ public abstract class MobMoveToDroppedItemGoal<T extends PathfinderMob> extends 
                 speed
         );
         mob.getLookControl().setLookAt(targetItem, 30.0F, 30.0F);
+
+        lastPathTargetX = tx;
+        lastPathTargetY = ty;
+        lastPathTargetZ = tz;
     }
 
     protected boolean canInteractNow(ItemEntity item) {
-        return item.onGround()
-                && mob.hasLineOfSight(item)
-                && isCloseEnoughToInteract(item);
+        return item.onGround() && mob.hasLineOfSight(item) && isCloseEnoughToInteract(item);
     }
 
     protected double horizontalDistanceToSqr(ItemEntity item) {
@@ -295,6 +339,12 @@ public abstract class MobMoveToDroppedItemGoal<T extends PathfinderMob> extends 
         if (targetItem != null) {
             failCache.markFailed(targetItem, mob.level().getGameTime());
         }
+    }
+
+    protected void resetLastPathTarget() {
+        lastPathTargetX = Double.NaN;
+        lastPathTargetY = Double.NaN;
+        lastPathTargetZ = Double.NaN;
     }
 
     protected abstract boolean isGoalEnabled();
