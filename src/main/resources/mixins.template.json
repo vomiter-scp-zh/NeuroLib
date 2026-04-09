@@ -10,7 +10,8 @@
     "MeleeAttackGoalAccessor",
     "MobStalkerMixin",
     "TargetGoalAccessor",
-    "WrappedGoalAccessor"
+    "WrappedGoalAccessor",
+    "compat.enhancedai.TargetingMixin"
   ],
   "client": [
   ],
