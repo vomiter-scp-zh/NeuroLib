@@ -3,7 +3,7 @@ package com.vomiter.neurolib.mixin.compat.enhancedai;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.vomiter.neurolib.common.entity.hunt.AbstractCappedHuntGoal;
-import insane96mcp.enhancedai.modules.mobs.targeting.Targeting;
+import insane96mcp.enhancedai.module.mobs.targeting.Targeting;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.goal.WrappedGoal;
 import org.spongepowered.asm.mixin.Mixin;
